@@ -2,11 +2,8 @@ pipeline {
     agent any
 
     environment {
-        GIT_URL = 'https://github.com/Ayushkr093/MERNApp.git' 
-        FRONTEND_IMAGE = 'mern-frontend'
-        BACKEND_IMAGE = 'mern-backend'
+        GIT_URL = 'https://github.com/Ayushkr093/MERNApp.git'
         DOCKER_NETWORK = 'mern-network'
-        FRONTEND_PORT = '5173' 
     }
 
     stages {
@@ -33,85 +30,14 @@ pipeline {
             }
         }
 
-        stage('Build Frontend') {
-            steps {
-                dir('mern/frontend') {
-                    script {
-                        try {
-                            sh 'docker build -t mern-frontend .'
-                        } catch (Exception e) {
-                            echo "Frontend build failed: ${e.getMessage()}"
-                            currentBuild.result = 'FAILURE'
-                            return
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Run Frontend Container') {
+        stage('Run Docker Compose') {
             steps {
                 script {
                     try {
-                        // Clean up existing frontend container if needed
-                        sh "docker ps -a -q -f name=frontend | xargs -r docker rm -f"
-
-                        // Run the frontend container
-                        sh 'docker run --name=frontend --network=mern-network -d -p 5173:5173 mern-frontend'
+                        // Run docker-compose up to build and start the services (frontend, backend, mongodb)
+                        sh 'docker-compose -f docker-compose.yml up --build -d'
                     } catch (Exception e) {
-                        echo "Failed to start frontend container: ${e.getMessage()}"
-                        currentBuild.result = 'FAILURE'
-                        return
-                    }
-                }
-            }
-        }
-
-        stage('Run MongoDB Container') {
-            steps {
-                script {
-                    try {
-                        // Clean up any existing MongoDB container
-                        sh "docker ps -a -q -f name=mongodb | xargs -r docker rm -f"
-                        
-                        // Run the MongoDB container
-                        sh 'docker run --network=mern-network --name=mongodb -d -p 27017:27017 mongo:latest'
-                    } catch (Exception e) {
-                        echo "Failed to start MongoDB container: ${e.getMessage()}"
-                        currentBuild.result = 'FAILURE'
-                        return
-                    }
-                }
-            }
-        }
-
-        stage('Build Backend') {
-            steps {
-                dir('mern/backend') {
-                    script {
-                        try {
-                            sh 'docker build -t mern-backend .'
-                        } catch (Exception e) {
-                            echo "Backend build failed: ${e.getMessage()}"
-                            currentBuild.result = 'FAILURE'
-                            return
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Run Backend Container') {
-            steps {
-                script {
-                    try {
-                        // Clean up existing backend container if needed
-                        sh "docker ps -a -q -f name=backend | xargs -r docker rm -f"
-
-                        // Run the backend container
-                        sh 'docker run --name=backend --network=mern-network -d -p 5050:5050 mern-backend'
-                    } catch (Exception e) {
-                        echo "Failed to start backend container: ${e.getMessage()}"
+                        echo "Docker Compose failed: ${e.getMessage()}"
                         currentBuild.result = 'FAILURE'
                         return
                     }
@@ -140,12 +66,10 @@ pipeline {
             script {
                 echo 'Build failed. Running cleanup actions...'
 
-                // Remove containers if they exist
-                sh "docker ps -a -q -f name=frontend | xargs -r docker rm -f"
-                sh "docker ps -a -q -f name=backend | xargs -r docker rm -f"
-                sh "docker ps -a -q -f name=mongodb | xargs -r docker rm -f"
-                
-                // Remove network if needed
+                // Clean up Docker Compose resources
+                sh 'docker-compose -f docker-compose.yml down'
+
+                // Clean up the created Docker network if needed
                 sh "docker network ls --filter name=^mern-network\$ --format {{.Name}} | xargs -r docker network rm"
             }
         }
