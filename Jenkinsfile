@@ -1,5 +1,5 @@
 pipeline {
-    agent any  // Run the pipeline on any available agent
+    agent { label 'build-node'}
 
     environment {
         GIT_URL = 'https://github.com/Ayushkr093/MERNApp.git' // Replace with your actual Git URL
