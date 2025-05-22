@@ -15,18 +15,18 @@ pipeline {
             }
         }
 
-        stage('Create Docker Network') {
-            steps {
-                script {
-                    def networkExists = sh(script: "docker network ls --filter name=^${DOCKER_NETWORK}$ --format '{{.Name}}'", returnStdout: true).trim()
-                    if (networkExists == '') {
-                        sh "docker network create ${DOCKER_NETWORK}"
-                    } else {
-                        echo "Network '${DOCKER_NETWORK}' already exists"
-                    }
-                }
+       stage('Create Docker Network') {
+    steps {
+        script {
+            def networkExists = sh(script: '''docker network ls --filter name=^${DOCKER_NETWORK}\\$ --format '{{.Name}}' ''', returnStdout: true).trim()
+            if (networkExists == '') {
+                sh "docker network create ${DOCKER_NETWORK}"
+            } else {
+                echo "Network '${DOCKER_NETWORK}' already exists"
             }
         }
+    }
+}
 
         stage('Build Frontend') {
             steps {
