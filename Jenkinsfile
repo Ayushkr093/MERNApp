@@ -16,15 +16,17 @@ pipeline {
         stage('Initial Cleanup (Avoid Port Conflicts)') {
             steps {
                 script {
-                    echo 'Cleaning up existing containers on ports 27017 and 5173...'
-                    // Stop containers using ports 27017 or 5173
+                    echo 'Cleaning up containers using ports 27017, 5050, and 5173...'
                     sh '''
-                    for port in 27017 5173; do
+                    for port in 27017 5050 5173; do
                         CONTAINER=$(docker ps --filter "publish=${port}" --format "{{.ID}}")
                         if [ ! -z "$CONTAINER" ]; then
                             docker stop $CONTAINER && docker rm $CONTAINER
                         fi
                     done
+
+                    echo "Removing any existing 'backend' container to release network endpoints..."
+                    docker rm -f backend || true
                     '''
                 }
             }
@@ -36,9 +38,9 @@ pipeline {
                     def networkExists = sh(script: "docker network ls --filter name=^${DOCKER_NETWORK}\$ --format '{{.Name}}'", returnStdout: true).trim()
                     if (!networkExists) {
                         sh "docker network create ${DOCKER_NETWORK}"
-                        echo "Docker network \"${DOCKER_NETWORK}\" created."
+                        echo "Docker network '${DOCKER_NETWORK}' created."
                     } else {
-                        echo "Docker network \"${DOCKER_NETWORK}\" already exists."
+                        echo "Docker network '${DOCKER_NETWORK}' already exists."
                     }
                 }
             }
@@ -48,7 +50,7 @@ pipeline {
             steps {
                 script {
                     try {
-                        echo 'Starting services with Docker Compose...'
+                        echo 'Running Docker Compose to build and start services...'
                         sh 'docker-compose -f docker-compose.yml up --build -d'
                     } catch (Exception e) {
                         echo "Docker Compose failed: ${e.getMessage()}"
@@ -84,17 +86,23 @@ pipeline {
                 echo 'Build failed. Running cleanup actions...'
 
                 try {
-                    // Stop all running services
                     sh 'docker-compose -f docker-compose.yml down --volumes --remove-orphans'
                 } catch (Exception e) {
-                    echo "Error during docker-compose cleanup: ${e.getMessage()}"
+                    echo "Error during docker-compose down: ${e.getMessage()}"
                 }
 
                 try {
-                    // Remove the custom network if it's still present
-                    sh "docker network ls --filter name=^${DOCKER_NETWORK}\$ --format '{{.Name}}' | xargs -r docker network rm"
+                    echo 'Force removing lingering backend container...'
+                    sh 'docker rm -f backend || true'
                 } catch (Exception e) {
-                    echo "Error during network cleanup: ${e.getMessage()}"
+                    echo "Error removing backend container: ${e.getMessage()}"
+                }
+
+                try {
+                    echo 'Removing custom Docker network if possible...'
+                    sh "docker network rm ${DOCKER_NETWORK} || true"
+                } catch (Exception e) {
+                    echo "Error removing network: ${e.getMessage()}"
                 }
             }
         }
