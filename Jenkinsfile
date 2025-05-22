@@ -133,19 +133,20 @@ pipeline {
                 }
             }
         }
+    }
 
-        stage('Post Actions') {
-            steps {
-                script {
-                    echo 'Cleaning up Docker resources...'
-                    // Remove containers if they exist
-                    sh "docker ps -a -q -f name=frontend | xargs -r docker rm -f"
-                    sh "docker ps -a -q -f name=backend | xargs -r docker rm -f"
-                    sh "docker ps -a -q -f name=mongodb | xargs -r docker rm -f"
-                    
-                    // Remove network if needed
-                    sh "docker network ls --filter name=^mern-network\$ --format {{.Name}} | xargs -r docker network rm"
-                }
+    post {
+        failure {
+            script {
+                echo 'Build failed. Running cleanup actions...'
+
+                // Remove containers if they exist
+                sh "docker ps -a -q -f name=frontend | xargs -r docker rm -f"
+                sh "docker ps -a -q -f name=backend | xargs -r docker rm -f"
+                sh "docker ps -a -q -f name=mongodb | xargs -r docker rm -f"
+                
+                // Remove network if needed
+                sh "docker network ls --filter name=^mern-network\$ --format {{.Name}} | xargs -r docker network rm"
             }
         }
     }
