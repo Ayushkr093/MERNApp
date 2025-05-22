@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        GIT_URL = 'https://github.com/your-username/your-mern-repo.git' // Replace this with your repo URL
+        GIT_URL = 'https://github.com/Ayushkr093/MERNApp.git' 
         FRONTEND_IMAGE = 'mern-frontend'
         BACKEND_IMAGE = 'mern-backend'
         DOCKER_NETWORK = 'demo'
