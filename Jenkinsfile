@@ -72,9 +72,9 @@ pipeline {
                     echo 'Checking frontend at http://localhost:5173...'
                     def response = sh(script: 'curl -s http://localhost:5173', returnStdout: true).trim()
                     if (response.contains('<!doctype html>')) {
-                        echo "✅ Frontend is running"
+                        echo "Frontend is running"
                     } else {
-                        error "❌ Frontend is not accessible"
+                        error "Frontend is not accessible"
                     }
                 }
             }
