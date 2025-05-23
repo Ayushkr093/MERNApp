@@ -9,7 +9,7 @@ pipeline {
         BUILD_TAG = "v1-${env.BUILD_NUMBER}"
     }
 
-    stages {
+    stages { 
         stage('Checkout Code') {
             steps {
                 echo "🔄 Checking out code from ${GIT_BRANCH}..."
