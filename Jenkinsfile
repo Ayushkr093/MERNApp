@@ -10,11 +10,6 @@ pipeline {
         GIT_BRANCH = 'main' // You can change this to the branch you want to monitor
     }
 
-    tools {
-        // Ensure Docker is installed on the Jenkins node
-        dockerTool 'Docker'
-    }
-
     stages {
 
         // Checkout the specified Git branch
