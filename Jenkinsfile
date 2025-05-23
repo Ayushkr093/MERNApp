@@ -12,10 +12,6 @@ pipeline {
         BACKEND_IMAGE = "${DOCKER_HUB_REPO}-backend:latest"
     }
 
-    triggers {
-        githubPush()
-    }
-
     stages {
         stage('Checkout Code') {
             steps {
