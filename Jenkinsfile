@@ -4,10 +4,9 @@ pipeline {
     environment {
         DOCKER_REGISTRY = 'ayushkr08'
         FRONTEND_IMAGE = 'mernapp-frontend'
-        BACKEND_IMAGE  = 'mernapp-backend'
-        MONGODB_IMAGE  = 'mernapp-mongodb'
-        GIT_BRANCH     = 'main'
-        GIT_REPO_URL   = 'https://github.com/Ayushkr093/MERNApp.git'
+        BACKEND_IMAGE = 'mernapp-backend'
+        GIT_BRANCH = 'main'
+        GIT_REPO_URL = 'https://github.com/Ayushkr093/MERNApp.git'
     }
 
     stages {
@@ -32,9 +31,6 @@ pipeline {
 
                     echo '🏗️ Building backend image...'
                     docker.build("${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${GIT_BRANCH}", './MERNApp/mern/backend')
-
-                    echo '🏗️ Building MongoDB image...'
-                    docker.build("${DOCKER_REGISTRY}/${MONGODB_IMAGE}:${GIT_BRANCH}", './MERNApp/mern/mongodb')
                 }
             }
         }
@@ -50,7 +46,7 @@ pipeline {
             }
         }
 
-        stage('Push Docker Images') {
+        stage('Push Docker Images to Docker Hub') {
             steps {
                 script {
                     echo '📤 Pushing frontend image...'
@@ -58,20 +54,16 @@ pipeline {
 
                     echo '📤 Pushing backend image...'
                     docker.image("${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${GIT_BRANCH}").push()
-
-                    echo '📤 Pushing MongoDB image...'
-                    docker.image("${DOCKER_REGISTRY}/${MONGODB_IMAGE}:${GIT_BRANCH}").push()
                 }
             }
         }
 
-        stage('Run Docker Compose') {
+        stage('Run with Docker Compose') {
             steps {
                 script {
-                    echo '🚀 Deploying using Docker Compose...'
+                    echo '🚀 Running app with Docker Compose...'
                     dir('MERNApp/mern') {
-                        sh 'docker-compose down || true'
-                        sh 'docker-compose up -d'
+                        sh 'docker compose up -d'
                     }
                 }
             }
