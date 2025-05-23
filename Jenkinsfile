@@ -70,11 +70,28 @@ pipeline {
             steps {
                 script {
                     echo 'Checking frontend at http://localhost:5173...'
-                    def response = sh(script: 'curl -s http://localhost:5173', returnStdout: true).trim()
-                    if (response.contains('<!doctype html>')) {
-                        echo "✅ Frontend is running"
-                    } else {
-                        error "❌ Frontend is not accessible"
+                    
+                    // Retry logic for frontend availability check
+                    def retries = 0
+                    def success = false
+                    while (retries < RETRY_LIMIT && !success) {
+                        try {
+                            def response = sh(script: 'curl -s http://localhost:5173', returnStdout: true).trim()
+                            if (response.contains('<!doctype html>')) {
+                                echo "✅ Frontend is running"
+                                success = true
+                            } else {
+                                error "❌ Frontend is not accessible"
+                            }
+                        } catch (Exception e) {
+                            echo "Frontend not accessible, retrying in ${RETRY_DELAY} seconds..."
+                            retries++
+                            sleep(RETRY_DELAY)
+                        }
+                    }
+
+                    if (!success) {
+                        error "Frontend is not accessible after ${RETRY_LIMIT} attempts."
                     }
                 }
             }
@@ -88,6 +105,13 @@ pipeline {
                 sh 'docker-compose -f docker-compose.yml down --volumes --remove-orphans || true'
                 sh 'docker rm -f backend || true'
                 sh "docker network rm ${DOCKER_NETWORK} || true"
+            }
+        }
+        success {
+            script {
+                echo 'Build completed successfully.'
+                // Optionally, log frontend container logs for debugging.
+                sh 'docker logs mernappp_frontend_1'
             }
         }
     }
