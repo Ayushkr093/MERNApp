@@ -9,6 +9,7 @@ pipeline {
         MONGODB_IMAGE = 'mernapp-mongodb'
         GIT_BRANCH = 'main' // You can change this to the branch you want to monitor
         GIT_URL = 'https://github.com/Ayushkr093/MERNApp.git' // GitHub repository URL
+        DOCKER_BUILDKIT = '0'  // Disable BuildKit to avoid the buildx error
     }
 
     stages {
@@ -49,7 +50,8 @@ pipeline {
             steps {
                 script {
                     echo 'Building MongoDB image...'
-                    docker.build("${DOCKER_REGISTRY}/${MONGODB_IMAGE}:${GIT_BRANCH}", './mern/mongodb')
+                    // Make sure the path is correct here
+                    docker.build("${DOCKER_REGISTRY}/${MONGODB_IMAGE}:${GIT_BRANCH}", './mern/mongodb') 
                 }
             }
         }
