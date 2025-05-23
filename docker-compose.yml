@@ -37,3 +37,4 @@ networks:
 volumes:
   mongo-data:
     driver: local  # Persist MongoDB data locally
+    # Make sure the volume is persisted across rebuilds, so no need to worry about data loss
