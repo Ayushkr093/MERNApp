@@ -49,12 +49,13 @@ pipeline {
         stage('Run Docker Compose') {
             steps {
                 script {
-                    echo 'Running Docker Compose to build and start services...'
-                    def result = sh(script: 'docker-compose -f docker-compose.yml up --build -d', returnStatus: true)
-                    if (result != 0) {
-                        echo "Docker Compose failed with exit code: ${result}"
+                    try {
+                        echo 'Running Docker Compose to build and start services...'
+                        sh 'docker-compose -f docker-compose.yml up --build -d'
+                    } catch (Exception e) {
+                        echo "Docker Compose failed: ${e.getMessage()}"
                         currentBuild.result = 'FAILURE'
-                        error("Aborting pipeline due to Docker Compose failure.")
+                        return
                     }
                 }
             }
@@ -63,13 +64,16 @@ pipeline {
         stage('Verify Frontend is Running') {
             steps {
                 script {
-                    def response = sh(script: 'curl -s http://localhost:5173', returnStdout: true)
-                    if (response.contains("<!doctype html>")) {
-                        echo "Frontend is running at http://localhost:5173"
-                    } else {
-                        echo "Unexpected response from frontend: ${response.take(100)}"
+                    try {
+                        def response = sh(script: 'curl -s http://localhost:5173', returnStdout: true)
+                        if (response.contains("<!doctype html>")) {
+                            echo "Frontend is running at http://localhost:5173"
+                        } else {
+                            error "Unexpected response from frontend."
+                        }
+                    } catch (Exception e) {
+                        echo "Frontend is not accessible: ${e.getMessage()}"
                         currentBuild.result = 'FAILURE'
-                        error("Frontend check failed.")
                     }
                 }
             }
@@ -81,14 +85,25 @@ pipeline {
             script {
                 echo 'Build failed. Running cleanup actions...'
 
-                echo 'Stopping and removing all services...'
-                sh 'docker-compose -f docker-compose.yml down --volumes --remove-orphans || true'
+                try {
+                    sh 'docker-compose -f docker-compose.yml down --volumes --remove-orphans'
+                } catch (Exception e) {
+                    echo "Error during docker-compose down: ${e.getMessage()}"
+                }
 
-                echo 'Force removing lingering backend container...'
-                sh 'docker rm -f backend || true'
+                try {
+                    echo 'Force removing lingering backend container...'
+                    sh 'docker rm -f backend || true'
+                } catch (Exception e) {
+                    echo "Error removing backend container: ${e.getMessage()}"
+                }
 
-                echo 'Removing custom Docker network if possible...'
-                sh "docker network rm ${DOCKER_NETWORK} || true"
+                try {
+                    echo 'Removing custom Docker network if possible...'
+                    sh "docker network rm ${DOCKER_NETWORK} || true"
+                } catch (Exception e) {
+                    echo "Error removing network: ${e.getMessage()}"
+                }
             }
         }
     }
