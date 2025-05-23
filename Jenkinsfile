@@ -3,13 +3,14 @@ pipeline {
 
     environment {
         GIT_URL = 'https://github.com/Ayushkr093/MERNApp.git'
-        GIT_BRANCH = 'main'  
+        GIT_BRANCH = 'main'
         FRONTEND_IMAGE = 'ayushkr08/mernapp-frontend'
         BACKEND_IMAGE = 'ayushkr08/mernapp-backend'
+        MONGO_IMAGE = 'ayushkr08/mernapp-mongo'  /
         BUILD_TAG = "v1-${env.BUILD_NUMBER}"
     }
 
-    stages { 
+    stages {
         stage('Checkout Code') {
             steps {
                 echo "🔄 Checking out code from ${GIT_BRANCH}..."
@@ -39,21 +40,27 @@ pipeline {
             }
         }
 
-        
-        stage('Login to Docker Hub') {
-    steps {
-        echo "🔐 Logging into Docker Hub..."
-
-        // Using Jenkins credentials to securely access Docker Hub credentials
-        withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-            // Use the Personal Access Token (DOCKER_PASSWORD) for login
-            sh "echo ${DOCKER_PASSWORD} | docker login -u ${DOCKER_USERNAME} --password-stdin"
+        stage('Build MongoDB Docker Image') {
+            steps {
+                echo "🏗️ Building MongoDB Docker Image..."
+                sh """
+                    docker pull mongo:latest
+                    docker tag mongo:latest ${MONGO_IMAGE}:${BUILD_TAG}
+                    docker tag mongo:latest ${MONGO_IMAGE}:latest
+                """
+            }
         }
-    }
-}
 
+        stage('Login to Docker Hub') {
+            steps {
+                echo "🔐 Logging into Docker Hub..."
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh "echo ${DOCKER_PASSWORD} | docker login -u ${DOCKER_USERNAME} --password-stdin"
+                }
+            }
+        }
 
-        stage('Push Docker Images') {
+        stage('Push Docker Images to Docker Hub') {
             steps {
                 echo "🚀 Pushing Docker images to Docker Hub..."
                 sh """
@@ -61,6 +68,21 @@ pipeline {
                     docker push ${FRONTEND_IMAGE}:latest
                     docker push ${BACKEND_IMAGE}:${BUILD_TAG}
                     docker push ${BACKEND_IMAGE}:latest
+                    docker push ${MONGO_IMAGE}:${BUILD_TAG}
+                    docker push ${MONGO_IMAGE}:latest
+                """
+            }
+        }
+
+        stage('Run Containers with Docker Compose') {
+            steps {
+                echo "⚙️ Running Docker containers with Docker Compose..."
+                sh """
+                    # Navigate to the project root where docker-compose.yml is located
+                    cd ${WORKSPACE}
+                    
+                    # Run Docker Compose to bring up the services
+                    docker-compose up -d
                 """
             }
         }
@@ -68,10 +90,10 @@ pipeline {
 
     post {
         success {
-            echo '✅ Build and push to Docker Hub succeeded!'
+            echo '✅ Build, push to Docker Hub, and run containers succeeded!'
         }
         failure {
-            echo '❌ Build or push failed.'
+            echo '❌ Build, push to Docker Hub, or run containers failed.'
         }
     }
 }
