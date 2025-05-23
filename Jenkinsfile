@@ -40,17 +40,29 @@ pipeline {
             }
         }
 
-        stage('Push Docker Images to Docker Hub') {
-            steps {
-                echo "🚀 Pushing Docker images to Docker Hub..."
-                sh """
-                    docker push ${FRONTEND_IMAGE}:${BUILD_TAG}
-                    docker push ${FRONTEND_IMAGE}:latest
-                    docker push ${BACKEND_IMAGE}:${BUILD_TAG}
-                    docker push ${BACKEND_IMAGE}:latest
-                """
+       stage('Push Docker Images to Docker Hub') {
+    steps {
+        echo "🚀 Pushing Docker images to Docker Hub..."
+
+        script {
+            def images = [
+                "${FRONTEND_IMAGE}:${BUILD_TAG}",
+                "${FRONTEND_IMAGE}:latest",
+                "${BACKEND_IMAGE}:${BUILD_TAG}",
+                "${BACKEND_IMAGE}:latest"
+            ]
+
+            images.each { image ->
+                retry(3) {
+                    sh """
+                        docker push ${image}
+                    """
+                }
             }
         }
+    }
+}
+
 
         stage('Setup and Run Containers') {
             steps {
