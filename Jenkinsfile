@@ -10,16 +10,20 @@ pipeline {
 
     stages {
         stage('Clone Git Repository') {
-            steps {
-                script {
-                    echo '🔄 Cloning repository...'
-                    sh "git clone ${GIT_REPO_URL}"
-                    dir('MERNApp') {
-                        sh "git checkout ${GIT_BRANCH}"
-                    }
-                }
+    steps {
+        script {
+            echo '🔄 Cloning repository...'
+            // Clean up old directory if it exists
+            sh 'rm -rf MERNApp'
+            // Clone fresh
+            sh "git clone ${GIT_REPO_URL}"
+            dir('MERNApp') {
+                sh "git checkout ${GIT_BRANCH}"
             }
         }
+    }
+}
+
 
         stage('Build Frontend Image') {
             steps {
