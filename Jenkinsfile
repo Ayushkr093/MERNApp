@@ -4,6 +4,8 @@ pipeline {
     environment {
         GIT_URL = 'https://github.com/Ayushkr093/MERNApp.git'
         DOCKER_NETWORK = 'mern-network'
+        RETRY_LIMIT = 5
+        RETRY_DELAY = 5 // Seconds
     }
 
     stages {
@@ -17,16 +19,23 @@ pipeline {
             steps {
                 script {
                     echo 'Cleaning up existing containers on ports 27017, 5050, and 5173...'
-                    sh '''
-                        for port in 27017 5050 5173; do
-                            CONTAINERS=$(docker ps --filter "publish=${port}" --format "{{.ID}}")
-                            for CONTAINER in $CONTAINERS; do
-                                echo "Removing container $CONTAINER..."
-                                docker rm -f $CONTAINER || true
-                            done
-                        done
-                        docker rm -f backend || true
-                    '''
+                    def ports = [27017, 5050, 5173]
+                    ports.each { port ->
+                        def containers = sh(script: "docker ps --filter 'publish=${port}' --format '{{.ID}}'", returnStdout: true).trim()
+                        containers.split("\n").each { container ->
+                            if (container) {
+                                echo "Attempting to remove container ${container}..."
+                                def removeStatus = sh(script: "docker rm -f ${container} || true", returnStatus: true)
+                                if (removeStatus != 0) {
+                                    echo "Failed to remove container ${container}, retrying..."
+                                    sleep(RETRY_DELAY)
+                                    sh "docker rm -f ${container} || true"
+                                }
+                            }
+                        }
+                    }
+                    echo 'Removing lingering backend container...'
+                    sh 'docker rm -f backend || true'
                 }
             }
         }
@@ -37,9 +46,9 @@ pipeline {
                     def networkExists = sh(script: "docker network ls --filter name=^${DOCKER_NETWORK}\$ --format '{{.Name}}'", returnStdout: true).trim()
                     if (!networkExists) {
                         sh "docker network create ${DOCKER_NETWORK}"
-                        echo "Network '${DOCKER_NETWORK}' created."
+                        echo "Docker network '${DOCKER_NETWORK}' created."
                     } else {
-                        echo "Network '${DOCKER_NETWORK}' already exists."
+                        echo "Docker network '${DOCKER_NETWORK}' already exists."
                     }
                 }
             }
@@ -48,7 +57,7 @@ pipeline {
         stage('Run Docker Compose') {
             steps {
                 script {
-                    echo 'Building and starting services with Docker Compose...'
+                    echo 'Running Docker Compose to build and start services...'
                     def status = sh(script: 'docker-compose -f docker-compose.yml up --build -d', returnStatus: true)
                     if (status != 0) {
                         error("Docker Compose failed with exit code ${status}")
