@@ -4,8 +4,8 @@ pipeline {
     environment {
         GIT_URL = 'https://github.com/Ayushkr093/MERNApp.git'
         GIT_BRANCH = 'main'  
-        FRONTEND_IMAGE = 'ayushkr093/mernapp-frontend'
-        BACKEND_IMAGE = 'ayushkr093/mernapp-backend'
+        FRONTEND_IMAGE = 'ayushkr08/mernapp-frontend'
+        BACKEND_IMAGE = 'ayushkr08/mernapp-backend'
         BUILD_TAG = "v1-${env.BUILD_NUMBER}"
     }
 
