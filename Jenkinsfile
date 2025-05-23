@@ -8,6 +8,7 @@ pipeline {
         BACKEND_IMAGE = 'mernapp-backend'
         MONGODB_IMAGE = 'mernapp-mongodb'
         GIT_BRANCH = 'main' // You can change this to the branch you want to monitor
+        GIT_URL = 'https://github.com/Ayushkr093/MERNApp.git' // GitHub repository URL
     }
 
     stages {
@@ -16,9 +17,9 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 script {
-                    echo "Checking out branch ${GIT_BRANCH}..."
-                    // Checkout the Git branch
-                    sh "git checkout ${GIT_BRANCH}"
+                    echo "Cloning repository ${GIT_URL}..."
+                    // Checkout the code from GitHub repository
+                    git url: "${GIT_URL}", branch: "${GIT_BRANCH}"
                 }
             }
         }
