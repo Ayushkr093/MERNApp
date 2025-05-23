@@ -1,111 +1,124 @@
 pipeline {
-    agent any
+    agent any  // Use any agent to run the pipeline
 
     environment {
-        // Docker Hub Credentials (Use Jenkins' Docker Credentials Store or Secrets)
-        DOCKER_CREDENTIALS = credentials('docker-hub-credentials') // Replace with your Jenkins Docker Hub credentials ID
-        DOCKER_REGISTRY = 'docker.io'
-        DOCKER_USER = "${DOCKER_CREDENTIALS_USR}"
-        DOCKER_PASSWORD = "${DOCKER_CREDENTIALS_PSW}"
-        GIT_URL = 'https://github.com/Ayushkr093/MERNApp.git'
-        GIT_BRANCH = 'main' // Trigger on changes to 'develop' branch
-        FRONTEND_IMAGE = 'mernapp_frontend'
-        BACKEND_IMAGE = 'mernapp_backend'
-        MONGODB_IMAGE = 'mernapp_mongodb'
+        // Docker Hub credentials and image names
+        DOCKER_REGISTRY = 'ayushkr08'
+        FRONTEND_IMAGE = 'mernapp-frontend'
+        BACKEND_IMAGE = 'mernapp-backend'
+        MONGODB_IMAGE = 'mernapp-mongodb'
+        GIT_BRANCH = 'main' // You can change this to the branch you want to monitor
     }
 
-    triggers {
-        // Trigger the pipeline on a push to the develop branch
-        githubPush() // Ensure that GitHub webhook is set up to trigger on push to develop branch
+    tools {
+        // Ensure Docker is installed on the Jenkins node
+        dockerTool 'Docker'
     }
 
     stages {
+
+        // Checkout the specified Git branch
         stage('Checkout Code') {
             steps {
-                // Checkout code from the Git repository
-                git url: "${env.GIT_URL}", branch: "${env.GIT_BRANCH}"
+                script {
+                    echo "Checking out branch ${GIT_BRANCH}..."
+                    // Checkout the Git branch
+                    sh "git checkout ${GIT_BRANCH}"
+                }
             }
         }
 
+        // Build the frontend Docker image
         stage('Build Frontend Image') {
             steps {
                 script {
                     echo 'Building frontend image...'
-                    docker.build("${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${GIT_BRANCH}", './mern/frontend') // Build from MERNApp/mern/frontend directory
+                    docker.build("${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${GIT_BRANCH}", './mern/frontend')
                 }
             }
         }
 
+        // Build the backend Docker image
         stage('Build Backend Image') {
             steps {
                 script {
                     echo 'Building backend image...'
-                    docker.build("${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${GIT_BRANCH}", './mern/backend') // Build from MERNApp/mern/backend directory
+                    docker.build("${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${GIT_BRANCH}", './mern/backend')
                 }
             }
         }
 
+        // Build the MongoDB Docker image
         stage('Build MongoDB Image') {
             steps {
                 script {
                     echo 'Building MongoDB image...'
-                    docker.build("${DOCKER_REGISTRY}/${MONGODB_IMAGE}:${GIT_BRANCH}", './mern/mongodb') // Build from MERNApp/mern/mongodb directory (if custom setup is needed)
+                    docker.build("${DOCKER_REGISTRY}/${MONGODB_IMAGE}:${GIT_BRANCH}", './mern/mongodb')
                 }
             }
         }
 
+        // Login to Docker Hub
         stage('Login to Docker Hub') {
             steps {
                 script {
-                    echo 'Logging into Docker Hub...'
-                    // Login to Docker Hub using Jenkins credentials
-                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKER_CREDENTIALS}") {
-                        echo 'Successfully logged in to Docker Hub.'
+                    echo 'Logging in to Docker Hub...'
+                    docker.withRegistry("https://index.docker.io/v1/", 'dockerhub-credentials') {
+                        // Credentials will be automatically used here
                     }
                 }
             }
         }
 
+        // Push Docker images to Docker Hub
         stage('Push Docker Images to Docker Hub') {
             steps {
                 script {
                     echo 'Pushing frontend image to Docker Hub...'
-                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKER_CREDENTIALS}") {
+                    docker.withRegistry("https://index.docker.io/v1/", 'dockerhub-credentials') {
                         docker.image("${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${GIT_BRANCH}").push()
                     }
 
                     echo 'Pushing backend image to Docker Hub...'
-                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKER_CREDENTIALS}") {
+                    docker.withRegistry("https://index.docker.io/v1/", 'dockerhub-credentials') {
                         docker.image("${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${GIT_BRANCH}").push()
                     }
 
                     echo 'Pushing MongoDB image to Docker Hub...'
-                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKER_CREDENTIALS}") {
+                    docker.withRegistry("https://index.docker.io/v1/", 'dockerhub-credentials') {
                         docker.image("${DOCKER_REGISTRY}/${MONGODB_IMAGE}:${GIT_BRANCH}").push()
                     }
                 }
             }
         }
 
+        // Run Docker Compose to bring up containers
         stage('Run Docker Compose') {
             steps {
                 script {
-                    echo 'Running Docker Compose to start services...'
-                    // Use docker-compose to start up the services using the newly pushed images
-                    sh 'docker-compose -f MERNApp/docker-compose.yml up -d' // This should be set up to use the images from Docker Hub
+                    echo 'Running Docker Compose to start containers...'
+                    sh 'docker-compose -f MERNApp/docker-compose.yml up -d'
+                }
+            }
+        }
+
+        // Clean up after build
+        stage('Clean up') {
+            steps {
+                script {
+                    echo 'Cleaning up Docker containers and networks...'
+                    sh 'docker-compose -f MERNApp/docker-compose.yml down --volumes --remove-orphans'
+                    sh 'docker network rm mern-network'
                 }
             }
         }
     }
 
     post {
-        success {
-            echo 'Build and deployment completed successfully!'
-        }
-        failure {
-            echo 'Build or deployment failed. Performing cleanup...'
-            // Clean up resources in case of failure
-            sh 'docker-compose down --volumes --remove-orphans'
+        always {
+            // Cleanup any lingering Docker resources
+            echo 'Cleaning up any remaining Docker resources...'
+            sh 'docker system prune -f'
         }
     }
 }
