@@ -62,7 +62,7 @@ pipeline {
             steps {
                 script {
                     echo '🚀 Running app with Docker Compose...'
-                    dir('MERNApp/mern') {
+                    dir('MERNApp') {
                         sh 'docker compose up -d'
                     }
                 }
