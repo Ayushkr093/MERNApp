@@ -1,58 +1,51 @@
 pipeline {
-    agent any  // Use any agent to run the pipeline
+    agent any
 
     environment {
-        // Docker Hub credentials and image names
         DOCKER_REGISTRY = 'ayushkr08'
         FRONTEND_IMAGE = 'mernapp-frontend'
-        GIT_BRANCH = 'main' // You can change this to the branch you want to monitor
+        GIT_BRANCH = 'main'
+        GIT_REPO_URL = 'https://github.com/Ayushkr093/MERNApp.git'
     }
 
     stages {
-        // Git Clone the repository
         stage('Clone Git Repository') {
             steps {
                 script {
-                    echo 'Cloning repository...'
-                    // Clone the repository from GitHub
-                    sh 'git clone https://github.com/Ayushkr093/MERNApp.git'
+                    echo '🔄 Cloning repository...'
+                    sh "git clone ${GIT_REPO_URL}"
                     dir('MERNApp') {
-                        sh 'git checkout ${GIT_BRANCH}'  // Checkout the specific branch
+                        sh "git checkout ${GIT_BRANCH}"
                     }
                 }
             }
         }
 
-        // Build the frontend Docker image
         stage('Build Frontend Image') {
             steps {
                 script {
-                    echo 'Building frontend image...'
+                    echo '🏗️ Building frontend Docker image...'
                     docker.build("${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${GIT_BRANCH}", './MERNApp/mern/frontend')
                 }
             }
         }
 
-        // Login to Docker Hub
         stage('Login to Docker Hub') {
             steps {
                 script {
-                    echo 'Logging in to Docker Hub...'
-                    docker.withRegistry("https://index.docker.io/v1/", 'dockerhub-credentials') {
-                        // Credentials will be automatically used here
+                    echo '🔐 Logging in to Docker Hub...'
+                    withCredentials([usernamePassword(credentialsId: 'DOCKER_CREDENTIALS', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh 'echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin'
                     }
                 }
             }
         }
 
-        // Push Docker frontend image to Docker Hub
         stage('Push Frontend Docker Image to Docker Hub') {
             steps {
                 script {
-                    echo 'Pushing frontend image to Docker Hub...'
-                    docker.withRegistry("https://index.docker.io/v1/", 'dockerhub-credentials') {
-                        docker.image("${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${GIT_BRANCH}").push()
-                    }
+                    echo '📤 Pushing frontend image to Docker Hub...'
+                    docker.image("${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${GIT_BRANCH}").push()
                 }
             }
         }
@@ -60,9 +53,8 @@ pipeline {
 
     post {
         always {
-            // Cleanup any lingering Docker resources
-            echo 'Cleaning up any remaining Docker resources...'
-            sh 'docker system prune -f'
+            echo '🧹 Cleaning up unused Docker resources...'
+            sh 'docker system prune -f --volumes || true'
         }
     }
 }
