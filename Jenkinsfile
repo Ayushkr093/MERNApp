@@ -2,53 +2,86 @@ pipeline {
     agent any
 
     environment {
+        // Docker Hub Credentials (Use Jenkins' Docker Credentials Store or Secrets)
+        DOCKER_CREDENTIALS = credentials('docker-hub-credentials') // Replace with your Jenkins Docker Hub credentials ID
+        DOCKER_REGISTRY = 'docker.io'
+        DOCKER_USER = "${DOCKER_CREDENTIALS_USR}"
+        DOCKER_PASSWORD = "${DOCKER_CREDENTIALS_PSW}"
         GIT_URL = 'https://github.com/Ayushkr093/MERNApp.git'
-        DOCKER_NETWORK = 'mern-network'
-        RETRY_LIMIT = 5
-        RETRY_DELAY = 5 // Seconds
+        GIT_BRANCH = 'main' // Trigger on changes to 'develop' branch
+        FRONTEND_IMAGE = 'mernapp_frontend'
+        BACKEND_IMAGE = 'mernapp_backend'
+        MONGODB_IMAGE = 'mernapp_mongodb'
+    }
+
+    triggers {
+        // Trigger the pipeline on a push to the develop branch
+        githubPush() // Ensure that GitHub webhook is set up to trigger on push to develop branch
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                git url: "${env.GIT_URL}", branch: 'main'
+                // Checkout code from the Git repository
+                git url: "${env.GIT_URL}", branch: "${env.GIT_BRANCH}"
             }
         }
 
-        stage('Cleanup') {
+        stage('Build Frontend Image') {
             steps {
                 script {
-                    echo 'Cleaning up existing containers on ports 27017, 5050, and 5173...'
-                    def ports = [27017, 5050, 5173]
-                    ports.each { port ->
-                        def containers = sh(script: "docker ps --filter 'publish=${port}' --format '{{.ID}}'", returnStdout: true).trim()
-                        containers.split("\n").each { container ->
-                            if (container) {
-                                echo "Attempting to remove container ${container}..."
-                                def removeStatus = sh(script: "docker rm -f ${container} || true", returnStatus: true)
-                                if (removeStatus != 0) {
-                                    echo "Failed to remove container ${container}, retrying..."
-                                    sleep(RETRY_DELAY)
-                                    sh "docker rm -f ${container} || true"
-                                }
-                            }
-                        }
-                    }
-                    echo 'Removing lingering backend container...'
-                    sh 'docker rm -f backend || true'
+                    echo 'Building frontend image...'
+                    docker.build("${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${GIT_BRANCH}", './mern/frontend') // Build from MERNApp/mern/frontend directory
                 }
             }
         }
 
-        stage('Setup Docker Network') {
+        stage('Build Backend Image') {
             steps {
                 script {
-                    def networkExists = sh(script: "docker network ls --filter name=^${DOCKER_NETWORK}\$ --format '{{.Name}}'", returnStdout: true).trim()
-                    if (!networkExists) {
-                        sh "docker network create ${DOCKER_NETWORK}"
-                        echo "Docker network '${DOCKER_NETWORK}' created."
-                    } else {
-                        echo "Docker network '${DOCKER_NETWORK}' already exists."
+                    echo 'Building backend image...'
+                    docker.build("${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${GIT_BRANCH}", './mern/backend') // Build from MERNApp/mern/backend directory
+                }
+            }
+        }
+
+        stage('Build MongoDB Image') {
+            steps {
+                script {
+                    echo 'Building MongoDB image...'
+                    docker.build("${DOCKER_REGISTRY}/${MONGODB_IMAGE}:${GIT_BRANCH}", './mern/mongodb') // Build from MERNApp/mern/mongodb directory (if custom setup is needed)
+                }
+            }
+        }
+
+        stage('Login to Docker Hub') {
+            steps {
+                script {
+                    echo 'Logging into Docker Hub...'
+                    // Login to Docker Hub using Jenkins credentials
+                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKER_CREDENTIALS}") {
+                        echo 'Successfully logged in to Docker Hub.'
+                    }
+                }
+            }
+        }
+
+        stage('Push Docker Images to Docker Hub') {
+            steps {
+                script {
+                    echo 'Pushing frontend image to Docker Hub...'
+                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKER_CREDENTIALS}") {
+                        docker.image("${DOCKER_REGISTRY}/${FRONTEND_IMAGE}:${GIT_BRANCH}").push()
+                    }
+
+                    echo 'Pushing backend image to Docker Hub...'
+                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKER_CREDENTIALS}") {
+                        docker.image("${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${GIT_BRANCH}").push()
+                    }
+
+                    echo 'Pushing MongoDB image to Docker Hub...'
+                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKER_CREDENTIALS}") {
+                        docker.image("${DOCKER_REGISTRY}/${MONGODB_IMAGE}:${GIT_BRANCH}").push()
                     }
                 }
             }
@@ -57,62 +90,22 @@ pipeline {
         stage('Run Docker Compose') {
             steps {
                 script {
-                    echo 'Running Docker Compose to build and start services...'
-                    def status = sh(script: 'docker-compose -f docker-compose.yml up --build -d', returnStatus: true)
-                    if (status != 0) {
-                        error("Docker Compose failed with exit code ${status}")
-                    }
-                }
-            }
-        }
-
-        stage('Verify Frontend') {
-            steps {
-                script {
-                    echo 'Checking frontend at http://localhost:5173 ...'
-                    
-                    // Retry logic for frontend availability check
-                    def retries = 0
-                    def success = false
-                    while (retries < RETRY_LIMIT && !success) {
-                        try {
-                            def response = sh(script: 'curl -s http://localhost:5173', returnStdout: true).trim()
-                            if (response.contains('<!doctype html>')) {
-                                echo "✅ Frontend is running"
-                                success = true
-                            } else {
-                                error "❌ Frontend is not accessible"
-                            }
-                        } catch (Exception e) {
-                            echo "Frontend not accessible, retrying in ${RETRY_DELAY} seconds..."
-                            retries++
-                            sleep(RETRY_DELAY)
-                        }
-                    }
-
-                    if (!success) {
-                        error "Frontend is not accessible after ${RETRY_LIMIT} attempts."
-                    }
+                    echo 'Running Docker Compose to start services...'
+                    // Use docker-compose to start up the services using the newly pushed images
+                    sh 'docker-compose -f MERNApp/docker-compose.yml up -d' // This should be set up to use the images from Docker Hub
                 }
             }
         }
     }
 
     post {
-        failure {
-            script {
-                echo 'Build failed. Performing cleanup...'
-                sh 'docker-compose -f docker-compose.yml down --volumes --remove-orphans || true'
-                sh 'docker rm -f backend || true'
-                sh "docker network rm ${DOCKER_NETWORK} || true"
-            }
-        }
         success {
-            script {
-                echo 'Build completed successfully.'
-                // Optionally, log frontend container logs for debugging.
-                sh 'docker logs mernappp_frontend_1'
-            }
+            echo 'Build and deployment completed successfully!'
+        }
+        failure {
+            echo 'Build or deployment failed. Performing cleanup...'
+            // Clean up resources in case of failure
+            sh 'docker-compose down --volumes --remove-orphans'
         }
     }
 }
