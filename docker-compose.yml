@@ -8,7 +8,8 @@ services:
     networks:
       - mern_network
     environment:
-      MONGO_URI: mongodb://mongo:27017/mydatabase  # MongoDB connection string
+      MONGO_URI: mongodb+srv://Ayush:09311502721@cluster0.ma0n1d2.mongodb.net/
+
     depends_on:
       - mongodb
 
