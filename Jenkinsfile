@@ -19,7 +19,11 @@ pipeline {
                     echo 'Cleaning up existing containers on ports 27017, 5050, and 5173...'
                     sh '''
                         for port in 27017 5050 5173; do
-                            docker ps --filter "publish=${port}" --format "{{.ID}}" | xargs -r docker rm -f
+                            CONTAINERS=$(docker ps --filter "publish=${port}" --format "{{.ID}}")
+                            for CONTAINER in $CONTAINERS; do
+                                echo "Removing container $CONTAINER..."
+                                docker rm -f $CONTAINER || true
+                            done
                         done
                         docker rm -f backend || true
                     '''
