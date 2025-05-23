@@ -6,7 +6,7 @@ pipeline {
         GIT_BRANCH = 'main'
         FRONTEND_IMAGE = 'ayushkr08/mernapp-frontend'
         BACKEND_IMAGE = 'ayushkr08/mernapp-backend'
-        MONGO_IMAGE = 'ayushkr08/mernapp-mongo'  /
+        MONGO_IMAGE = 'mongo:latest'  
         BUILD_TAG = "v1-${env.BUILD_NUMBER}"
     }
 
@@ -40,26 +40,6 @@ pipeline {
             }
         }
 
-        stage('Build MongoDB Docker Image') {
-            steps {
-                echo "🏗️ Building MongoDB Docker Image..."
-                sh """
-                    docker pull mongo:latest
-                    docker tag mongo:latest ${MONGO_IMAGE}:${BUILD_TAG}
-                    docker tag mongo:latest ${MONGO_IMAGE}:latest
-                """
-            }
-        }
-
-        stage('Login to Docker Hub') {
-            steps {
-                echo "🔐 Logging into Docker Hub..."
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                    sh "echo ${DOCKER_PASSWORD} | docker login -u ${DOCKER_USERNAME} --password-stdin"
-                }
-            }
-        }
-
         stage('Push Docker Images to Docker Hub') {
             steps {
                 echo "🚀 Pushing Docker images to Docker Hub..."
@@ -68,21 +48,38 @@ pipeline {
                     docker push ${FRONTEND_IMAGE}:latest
                     docker push ${BACKEND_IMAGE}:${BUILD_TAG}
                     docker push ${BACKEND_IMAGE}:latest
-                    docker push ${MONGO_IMAGE}:${BUILD_TAG}
-                    docker push ${MONGO_IMAGE}:latest
                 """
             }
         }
 
-        stage('Run Containers with Docker Compose') {
+        stage('Setup and Run Containers') {
             steps {
-                echo "⚙️ Running Docker containers with Docker Compose..."
+                echo "⚙️ Setting up network and running containers..."
                 sh """
-                    # Navigate to the project root where docker-compose.yml is located
-                    cd ${WORKSPACE}
-                    
-                    # Run Docker Compose to bring up the services
-                    docker-compose up -d
+                    # Create the custom network
+                    docker network create demo
+
+                    # Run MongoDB container
+                    docker run --network=demo --name mongodb -d -p 27017:27017 -v ~/opt/data:/data/db mongo:latest
+
+                    # Run Frontend container
+                    docker run --name=frontend --network=demo -d -p 5173:5173 ${FRONTEND_IMAGE}:${BUILD_TAG}
+
+                    # Run Backend container
+                    docker run --name=backend --network=demo -d -p 5050:5050 ${BACKEND_IMAGE}:${BUILD_TAG}
+
+                    # Optionally verify if frontend is running by curling the frontend URL
+                    curl http://localhost:5173
+                """
+            }
+        }
+
+        stage('Clean Up') {
+            steps {
+                echo "🧹 Cleaning up any resources if necessary..."
+                sh """
+                    # Clean up: Remove network after usage (optional)
+                    docker network rm demo
                 """
             }
         }
