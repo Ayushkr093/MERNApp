@@ -69,7 +69,7 @@ pipeline {
         stage('Verify Frontend') {
             steps {
                 script {
-                    echo 'Checking frontend at http://localhost:5173...'
+                    echo 'Checking frontend at http://localhost:5173 ...'
                     
                     // Retry logic for frontend availability check
                     def retries = 0
