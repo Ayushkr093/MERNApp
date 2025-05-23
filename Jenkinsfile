@@ -2,7 +2,7 @@ pipeline {
     agent any
     environment {
         GIT_URL = 'https://github.com/Ayushkr093/MERNApp.git'
-        GIT_BRANCH = 'develop'
+        GIT_BRANCH = 'main'
 
         DOCKER_HUB_REPO = 'ayushkr093/mernapp'
         DOCKER_HUB_USERNAME = credentials('ayushkr08') // Injected securely
